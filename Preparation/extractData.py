@@ -72,7 +72,7 @@ def extract_all(base_folder, output_csv):
                             extracted_data.append({
                                 "Filename": os.path.relpath(file_path, base_folder),
                                 "Title": title,
-                                "Organizations": ", ".join(organizations),
+                                "Organizations": organizations[0],
                                 "Publication Year": publication_year,
                                 "Abstracts": abstracts
                             })
