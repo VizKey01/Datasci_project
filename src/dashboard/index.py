@@ -10,22 +10,15 @@ findspark.init()
 
 spark_url = 'local'
 
-from pyspark.pandas import SparkSession,read_csv
-from pyspark.pandas import SQLContext
-
-spark = SparkSession.builder\
-        .master(spark_url)\
-        .appName('Spark Tutorial')\
-        .config('spark.ui.port', '4040')\
-        .getOrCreate()
-
+import pyspark.pandas as spark
+import pyspark as ps
 # Set page configuration
 st.set_page_config(page_title="Global Carbon Research Distribution", layout="wide")
 
 # Load and prepare data
 # df = pd.read_csv("final_data.csv")
 
-df = read_csv("final_data.csv")
+df = spark.read_csv("final_data.csv")
 cleaned_df = df.dropna(subset=['latitude'])
 
 df = pd.read_csv("final_data.csv")
@@ -302,7 +295,12 @@ def main():
     ana_col1,ana_col2 = st.columns(2)
     with ana_col1:
         # Count and sort topics
-        topic_distribution = filtered_df['assigned_Topic'].value_counts().reset_index()
+        topic_distribution = (
+            filtered_df.groupby('assigned_Topic')
+            .agg(ps.count('*').alias('Number of Papers'))
+            .sort_values('Number of Papers', ascending=False)
+            .reset_index()
+         )
         topic_distribution.columns = ['Topic', 'Number of Papers']
 
         # Display sorted table
@@ -335,10 +333,15 @@ def main():
     st.altair_chart(trend_chart, use_container_width=True)
 
     # Add collaboration analysis
-    collaborations = filtered_df.groupby(['affiliation']).agg({
-        'title': 'count',
-        'assigned_Topic': lambda x: len(x.unique())
-    }).sort_values('title', ascending=False).head(5)
+    collaborations = (
+        filtered_df.groupby('affiliation')
+        .agg(
+            ps.count('title').alias('Number of Papers'),
+            ps.count(ps.expr('DISTINCT assigned_Topic')).alias('Unique Topics')
+        )
+        .sort_values('Number of Papers', ascending=False)
+        .head(5)
+    )
 
     st.header("Top Research Institutions")
     st.dataframe(collaborations.rename(columns={
