@@ -23,16 +23,19 @@ cleaned_df = df.dropna(subset=['latitude'])
 
 df = pd.read_csv("final_data.csv")
 
+def rgb_to_hex(rgb):
+    return '#{:02x}{:02x}{:02x}'.format(*rgb)
+
 
 topic_colors = {
-    'Study of Soil Carbon Emissions and Organic CH4 Levels in Forests': [255, 0, 0],
-    'High-Performance Activated Carbon Materials for CO2 Adsorption and Energy Applications': [0, 255, 0],
-    'Electronic Structure of N-Doped Carbon Molecular Bonds for Electrocatalytic Applications.': [0, 0, 255],
-    'Hydrogen Fuel Combustion Emissions in Diesel Engines': [255, 255, 0],
-    'Modeling Carbon Flame Flow Dynamics and Pressure Using Data Results': [255, 0, 255],
-    'Climate Change and Energy Development: A Study of Carbon Emissions and Data Modeling': [0, 255, 255],
-    'Rural Pulmonary Health Protection in CEE and CFC Regions with Skewed Household Outputs near Mangroves and TL': [128, 0, 128],
-    'High-temperature properties of carbon fiber composites.': [255, 165, 0]
+    'Study of Soil Carbon Emissions and Organic CH4 Levels in Forests': rgb_to_hex([255, 0, 0]),
+    'High-Performance Activated Carbon Materials for CO2 Adsorption and Energy Applications': rgb_to_hex([0, 255, 0]),
+    'Electronic Structure of N-Doped Carbon Molecular Bonds for Electrocatalytic Applications.': rgb_to_hex([0, 0, 255]),
+    'Hydrogen Fuel Combustion Emissions in Diesel Engines': rgb_to_hex([255, 255, 0]),
+    'Modeling Carbon Flame Flow Dynamics and Pressure Using Data Results': rgb_to_hex([255, 0, 255]),
+    'Climate Change and Energy Development: A Study of Carbon Emissions and Data Modeling': rgb_to_hex([0, 255, 255]),
+    'Rural Pulmonary Health Protection in CEE and CFC Regions with Skewed Household Outputs near Mangroves and TL': rgb_to_hex([128, 0, 128]),
+    'High-temperature properties of carbon fiber composites.': rgb_to_hex([255, 165, 0])
 }
 
 @st.cache_data
@@ -183,7 +186,7 @@ def main():
     st.sidebar.header("Display Options")
     view_type = st.sidebar.radio(
         "Select View Type",
-        ["Countries", "Points"],
+        ["Countries"],
         index=0
     )
     
@@ -286,8 +289,6 @@ def main():
     research_counts = filtered_df.groupby('affiliation').size().reset_index(name='count')
     research_details = filtered_df[['title', 'affiliation', 'year']]
 
-    # Merge counts with details
-    research_with_counts = pd.merge(research_details, research_counts, on='affiliation')
 
     st.header("Research Topics Distribution")
 
@@ -297,10 +298,11 @@ def main():
         # Count and sort topics
         topic_distribution = (
             filtered_df.groupby('assigned_Topic')
-            .agg(ps.count('*').alias('Number of Papers'))
+            .size()
+            .reset_index(name='Number of Papers')
             .sort_values('Number of Papers', ascending=False)
-            .reset_index()
-         )
+        )
+
         topic_distribution.columns = ['Topic', 'Number of Papers']
 
         # Display sorted table
@@ -313,18 +315,21 @@ def main():
 
     with ana_col2:
         # Add pie chart for topics
-        topic_dist = filtered_df['assigned_Topic'].value_counts().head(5)
-        pie_chart = alt.Chart(topic_dist.reset_index()).mark_arc().encode(
-            theta='count',
+        topic_dist = filtered_df['assigned_Topic'].value_counts().head(5).to_pandas()
+        topic_df = topic_dist.reset_index()
+        topic_df.columns = ['assigned_Topic','value']
+        pie_chart = alt.Chart(topic_df).mark_arc().encode(
+            theta='value',
             color='assigned_Topic',
-            tooltip=['assigned_Topic', 'count']
+            tooltip=['assigned_Topic', 'value']
         ).properties(title='Top 5 Research Topics')
         st.altair_chart(pie_chart)
 
 
     # Add time series analysis
     st.header("Research Trends")
-    yearly_papers = filtered_df.groupby('year')['title'].count()
+    yearly_papers = filtered_df.groupby('year')['title'].count().to_pandas()
+
     trend_chart = alt.Chart(yearly_papers.reset_index()).mark_line().encode(
         x='year:O',
         y='title:Q',
@@ -335,14 +340,14 @@ def main():
     # Add collaboration analysis
     collaborations = (
         filtered_df.groupby('affiliation')
-        .agg(
-            ps.count('title').alias('Number of Papers'),
-            ps.count(ps.expr('DISTINCT assigned_Topic')).alias('Unique Topics')
-        )
+        .agg({
+            'title': 'count',  # Count the number of papers
+            'assigned_Topic': 'nunique'  # Count unique topics
+        })
+        .rename(columns={'title': 'Number of Papers', 'assigned_Topic': 'Unique Topics'})
         .sort_values('Number of Papers', ascending=False)
         .head(5)
     )
-
     st.header("Top Research Institutions")
     st.dataframe(collaborations.rename(columns={
         'title': 'Number of Papers',
